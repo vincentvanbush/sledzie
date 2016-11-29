@@ -1,0 +1,53 @@
+---
+title: "Predykcja wymiarów śledzi"
+author: "Michał Buszkiewicz"
+date: "29 listopada 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(ggplot2) 
+set.seed(23)
+```
+## Wczytanie i wstępnie przetworzenie danych
+
+```{r read_data}
+raw.data <- read.csv('sledzie.csv', na.strings = '?')
+```
+
+Dane zawierają sporadycznie występujące puste wartości, które zostaną wypełnione medianami występującymi dla odpowiednich wartości kolumn `xmonth` i `recr`, które nie zawierają wartości pustych. Uznano to rozwiązanie za akceptowalne dla celów tej pracy, ponieważ liczności zbiorów wartości poszczególnych kolumn są niewielkie (w granicach 50 unikalnych wartości) w porównaniu z liczbą wierszów całej tabeli (ponad 50 tysięcy). Brakujące wartości są na tyle nieliczne, że wpływ ewentualnych przekłamań na wynik pracy można traktować jako pomijalny.
+
+```{r fill_gaps}
+processed.data <-
+  raw.data %>%
+    rowwise() %>%
+    mutate_all(
+      funs(
+        replace(., is.na(.), (
+            function(rownum, v, ref_recr, ref_xmonth) {
+              if (!is.na(v)) {
+                return(v);
+              }
+              else {
+                filtered = raw.data %>% filter(recr == ref_recr, xmonth == ref_xmonth)
+                med = (filtered %>% summarize(median(., na.rm = TRUE)))[[1]]
+                return(med)
+              }
+            }
+          ) (X, ., recr, xmonth)
+        )
+      )
+    )
+```
+
+## Podstawowe podsumowanie danych
+
+#Poniższa tabelka zapewnia pierwsze, najbardziej podstawowe spojrzenie na kształt danych wejściowych.
+
+#```{r raw_data_summary}
+#summary(raw.data)
+#```
+
+
