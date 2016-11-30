@@ -2,7 +2,10 @@
 title: "Predykcja wymiarów śledzi"
 author: "Michał Buszkiewicz"
 date: "`r format(Sys.time(), '%d %B %Y')`"
-output: html_document
+output:
+  html_document:
+    toc: true
+    theme: united
 ---
 
 ## Streszczenie raportu
@@ -10,13 +13,14 @@ output: html_document
 bla bla bla
 
 ## Zastosowane biblioteki, czynności wstępne
-Wczytanie bibliotek `dplyr` (przetwarzanie danych), `ggplot2` i `plotly` (prezentacja graficzna) i `easyGgplot2` (rozszerzenia do `ggplot2`) i ustawienie ziarna generatora liczb losowych.
+Wczytanie bibliotek `dplyr` (przetwarzanie danych), `ggplot2` i `plotly` (prezentacja graficzna), `easyGgplot2` (rozszerzenia do `ggplot2`) oraz `caret` i ustawienie ziarna generatora liczb losowych.
 ```{r setup, results='hide', message=FALSE}
 library(dplyr)
 library(plotly) # devtools::install_github(“ropensci/plotly”)
 library(ggplot2)
 library(easyGgplot2) # devtools::install_github("kassambara/easyGgplot2")
 library(reshape2)
+library(caret)
 set.seed(23)
 ```
 ## Wczytanie i wstępnie przetworzenie danych
@@ -106,6 +110,10 @@ Mapa korelacji pozwala na wyciągnięcie pewnych wstępnych wniosków dotyczący
     + `nao` - oscylacja północnoatlantycka (korelacja `r round(cor(processed.data$length, processed.data$nao), 2)`)
 * Atrybuty `sst` i `nao` posiadają przy tym wyraźną dodatnią korelację z atrybutem `X`, co zgodnie z założeniem o zachowaniu przez dane wejściowe chronologii mogłoby sugerować, że potencjalnie znaleziony regresor może uznać te zmienne za istotne czynniki predykcji.
 
+```{r cleanup_vars}
+processed.data <- processed.data %>% select(-lcop1, -lcop2, -cumf, -xmonth)
+```
+
 ## Ilustracja zmienności długości łowionych ryb
 
 Poniższy wykres przedstawia zależność długości ryby (mierzonej z dokładnością ) od czasu (numeru sekwencyjnego próbki w zbiorze). Dodatkowo, próbki zostały pokolorowane w zależności od `sst` (temperatury przy powierzchni wody) - jaśniejszy odcień koloru niebieskiego oznacza wyższą temperaturę, a u dołu wykresu znajduje sie pasek pozwalający na przełączanie pomiędzy próbkami w momentach, gdy oscylacja północnoatlantycka (atrybut `nao`) osiągał wartości dodatnie, a tymi wykonanymi przy ujemnej wartości tej zmiennej (`nao_range` odpowiednio 1 i -1).
@@ -124,3 +132,30 @@ ggplotly(
 Wizualizacja zdaje się być kolejnym czynnikiem mogącym potwierdzać przypuszczenie o związku temperatury przy powierzchni wody z długością łowionych ryb. W początkowym okresie badania (około 17000 próbek) wartość temperatury wykazywała tendencję spadkową (zilustrowane ciemniejącym odcieniem błękitu punktów), rosły zaś wskazania pomiaru długości ryb. W dalszej części wykresu temperatura przy powierzchni wody rośnie, spadają zaś pomiary długości śledzi.
 
 Trudniejszy do oszacowania wydaje się być wpływ parametru oscylacji północnoatlantyckiej. Jest to zjawisko cykliczne, która to cykliczność polega na okresowej dominacji odczytów dodatnich lub ujemnych - co zresztą znajduje potwierdzenie w wykresie, jeśli spojrzeć na okresowe zagęszczenie próbek dla ujemnego i dodatniego `nao`. Atrybut ten jest też w dość dużym stopniu skorelowany z `sst` - w okresie dominacji ujemnych odczytów `nao` dominują też niższe wartości `sst` i większe długości łowionych śledzi.
+
+## Konstrukcja regresora dla zmiennej `length`
+
+### Podział zbioru danych wejściowych
+Podział zbioru w proporcjach: `r ptrain <- 0.6; ptrain * 100`% zbiór uczący, `r ptest <- 0.5; ptest * (1.0 - ptrain) * 100`% zbiór testowy, `r pvalid <- 1.0 - ptest; pvalid * (1.0 - ptrain) * 100`% zbiór walidacyjny. 
+```{r partition}
+inTraining <- createDataPartition(y = processed.data$length, p = 0.6, list = FALSE)
+training <- processed.data[inTraining, ]
+testing.and.validation <- processed.data[-inTraining, ]
+inTesting <- createDataPartition(y = testing.and.validation$length, p = 0.5, list = FALSE)
+testing = testing.and.validation[inTesting, ]
+validation = testing.and.validation[-inTesting, ]
+```
+
+### Schemat uczenia
+```{r control}
+ctrl <- trainControl(
+  method = "repeatedcv",
+  number = 2,
+  repeats = 5
+)
+```
+
+### Uczenie metodą Random Forest
+```{r learning}
+fit <- train(length ~ ., data = training, method = "rf", trControl = ctrl, verbose = TRUE)
+```
