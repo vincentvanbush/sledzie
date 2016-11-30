@@ -4,22 +4,22 @@ author: "Michał Buszkiewicz"
 date: "29 listopada 2016"
 output: html_document
 ---
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+Wczytanie bibliotek: `dplyr` (przetwarzanie danych), `ggplot2` (prezentacja graficzna) i `easyGgplot2` (rozszerzenia do `ggplot2`) i ustawienie ziarna generatora liczb losowych.
+```{r setup, results='hide', message=FALSE}
 library(dplyr)
-library(ggplot2) 
+library(ggplot2)
+library(easyGgplot2) # devtools::install_github("kassambara/easyGgplot2")
 set.seed(23)
 ```
 ## Wczytanie i wstępnie przetworzenie danych
 
-```{r read_data}
+```{r read_data, cache=TRUE}
 raw.data <- read.csv('sledzie.csv', na.strings = '?')
 ```
 
 Dane zawierają sporadycznie występujące puste wartości, które zostaną wypełnione medianami występującymi dla odpowiednich wartości kolumn `xmonth` i `recr`, które nie zawierają wartości pustych. Uznano to rozwiązanie za akceptowalne dla celów tej pracy, ponieważ liczności zbiorów wartości poszczególnych kolumn są niewielkie (w granicach 50 unikalnych wartości) w porównaniu z liczbą wierszów całej tabeli (ponad 50 tysięcy). Brakujące wartości są na tyle nieliczne, że wpływ ewentualnych przekłamań na wynik pracy można traktować jako pomijalny.
 
-```{r fill_gaps}
+```{r fill_gaps, cache=TRUE}
 processed.data <-
   raw.data %>%
     rowwise() %>%
@@ -44,10 +44,31 @@ processed.data <-
 
 ## Podstawowe podsumowanie danych
 
-#Poniższa tabelka zapewnia pierwsze, najbardziej podstawowe spojrzenie na kształt danych wejściowych.
+Zbiór zawiera `r count(processed.data)` rekordów. Poniższa tabelka zawiera podstawowe statystyki dotyczące zbioru danych uzupełnionego o brakujące wartości komórek.
 
-#```{r raw_data_summary}
-#summary(raw.data)
-#```
+```{r raw_data_summary}
+knitr::kable(summary(processed.data[, 1:8])); knitr::kable(summary(processed.data[, 9:16]))
+```
 
+## Rozkłady wartości zmiennych
+
+Wartości średnie oznaczone liniami przerywanymi w kolorze czerwonym.
+
+```{r distributions, cache=TRUE, fig.height=10, out.width="100%"}
+plot.var <- function(varname, ...) {
+  ggplot(processed.data, aes(x=get(varname))) +
+    geom_histogram(color="black", fill="white", ...) +
+    geom_vline(aes(xintercept=mean(get(varname))), color="red", linetype="dashed", size=1) +
+    xlab(varname)
+}
+
+ggplot2.multiplot(
+  plot.var("length", binwidth = 0.5), plot.var("cfin1", bins = 30), plot.var("cfin2", bins = 15),
+  plot.var("chel1", bins = 30), plot.var("chel2", bins = 30), plot.var("lcop1", bins = 30),
+  plot.var("lcop2", bins = 30), plot.var("fbar", binwidth = 0.08), plot.var("recr", bins = 15),
+  plot.var("cumf", bins = 9), plot.var("totaln", bins = 12), plot.var("sst", binwidth = 0.15),
+  plot.var("sal", binwidth = 0.012), plot.var("nao", binwidth = 1),# plot.var("xmonth", binwidth = 1),
+  cols = 3
+)
+```
 
