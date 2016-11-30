@@ -1,13 +1,19 @@
 ---
 title: "Predykcja wymiarów śledzi"
 author: "Michał Buszkiewicz"
-date: "29 listopada 2016"
+date: "`r format(Sys.time(), '%d %B %Y')`"
 output: html_document
 ---
-Wczytanie bibliotek: `dplyr` (przetwarzanie danych), `ggplot2` i `plotly` (prezentacja graficzna) i `easyGgplot2` (rozszerzenia do `ggplot2`) i ustawienie ziarna generatora liczb losowych.
+
+## Streszczenie raportu
+
+bla bla bla
+
+## Zastosowane biblioteki, czynności wstępne
+Wczytanie bibliotek `dplyr` (przetwarzanie danych), `ggplot2` i `plotly` (prezentacja graficzna) i `easyGgplot2` (rozszerzenia do `ggplot2`) i ustawienie ziarna generatora liczb losowych.
 ```{r setup, results='hide', message=FALSE}
 library(dplyr)
-library(plotly)
+library(plotly) # devtools::install_github(“ropensci/plotly”)
 library(ggplot2)
 library(easyGgplot2) # devtools::install_github("kassambara/easyGgplot2")
 library(reshape2)
@@ -102,14 +108,19 @@ Mapa korelacji pozwala na wyciągnięcie pewnych wstępnych wniosków dotyczący
 
 ## Ilustracja zmienności długości łowionych ryb
 
-Poniższy wykres przedstawia zależność długości ryby (mierzonej z dokładnością ) od czasu (numeru sekwencyjnego próbki w zbiorze). Dodatkowo, próbki zosta
-```{r length_diagram, out.width="100%", fig.height=5}
+Poniższy wykres przedstawia zależność długości ryby (mierzonej z dokładnością ) od czasu (numeru sekwencyjnego próbki w zbiorze). Dodatkowo, próbki zostały pokolorowane w zależności od `sst` (temperatury przy powierzchni wody) - jaśniejszy odcień koloru niebieskiego oznacza wyższą temperaturę, a u dołu wykresu znajduje sie pasek pozwalający na przełączanie pomiędzy próbkami w momentach, gdy oscylacja północnoatlantycka (atrybut `nao`) osiągał wartości dodatnie, a tymi wykonanymi przy ujemnej wartości tej zmiennej (`nao_range` odpowiednio 1 i -1).
+
+Na wykresie ze względu na wydajność nakreslono co `r freq=35; freq` rekord ze zbioru.
+```{r length_diagram, out.width="100%", fig.height=5, warning=FALSE}
 ggplotly(
-  ggplot(processed.data[seq(1, nrow(processed.data), 50), ], aes(X, length)) +
-    geom_point(aes(color=sst)) +
+  ggplot(processed.data[seq(1, nrow(processed.data), freq), ] %>% mutate(nao_range = sign(nao)), aes(X, length)) +
+    geom_point(aes(color=sst, frame=nao_range)) +
     labs(x = "numer sekwencyjny próbki",
          y = "długość ryby (cm)",
          color = "Temp. pow.\nwody (st. C)",
          title = "Długość ryby, czas i temperatura")
 )
 ```
+Wizualizacja zdaje się być kolejnym czynnikiem mogącym potwierdzać przypuszczenie o związku temperatury przy powierzchni wody z długością łowionych ryb. W początkowym okresie badania (około 17000 próbek) wartość temperatury wykazywała tendencję spadkową (zilustrowane ciemniejącym odcieniem błękitu punktów), rosły zaś wskazania pomiaru długości ryb. W dalszej części wykresu temperatura przy powierzchni wody rośnie, spadają zaś pomiary długości śledzi.
+
+Trudniejszy do oszacowania wydaje się być wpływ parametru oscylacji północnoatlantyckiej. Jest to zjawisko cykliczne, która to cykliczność polega na okresowej dominacji odczytów dodatnich lub ujemnych - co zresztą znajduje potwierdzenie w wykresie, jeśli spojrzeć na okresowe zagęszczenie próbek dla ujemnego i dodatniego `nao`. Atrybut ten jest też w dość dużym stopniu skorelowany z `sst` - w okresie dominacji ujemnych odczytów `nao` dominują też niższe wartości `sst` i większe długości łowionych śledzi.
