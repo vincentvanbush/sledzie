@@ -4,11 +4,13 @@ author: "Michał Buszkiewicz"
 date: "29 listopada 2016"
 output: html_document
 ---
-Wczytanie bibliotek: `dplyr` (przetwarzanie danych), `ggplot2` (prezentacja graficzna) i `easyGgplot2` (rozszerzenia do `ggplot2`) i ustawienie ziarna generatora liczb losowych.
+Wczytanie bibliotek: `dplyr` (przetwarzanie danych), `ggplot2` i `plotly` (prezentacja graficzna) i `easyGgplot2` (rozszerzenia do `ggplot2`) i ustawienie ziarna generatora liczb losowych.
 ```{r setup, results='hide', message=FALSE}
 library(dplyr)
+library(plotly)
 library(ggplot2)
 library(easyGgplot2) # devtools::install_github("kassambara/easyGgplot2")
+library(reshape2)
 set.seed(23)
 ```
 ## Wczytanie i wstępnie przetworzenie danych
@@ -72,3 +74,42 @@ ggplot2.multiplot(
 )
 ```
 
+## Korelacja zmiennych
+
+```{r correlation, out.width="100%"}
+cor_matrix = round(cor(processed.data), 2)
+#cor_matrix[lower.tri(cor_matrix)] <- NA
+melted_cor_matrix <- melt(cor_matrix, na.rm = TRUE)
+
+ggplot(data = melted_cor_matrix, aes(Var2, Var1, fill = value)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "#91bfdb", high = "#fc8d59", mid = "#ffffbf", 
+                       midpoint = 0, limit = c(-1,1), space = "Lab", 
+                       name="Korelacja\nPearsona") +
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+        size = 12, hjust = 1)) +
+  coord_fixed()
+```
+Mapa korelacji pozwala na wyciągnięcie pewnych wstępnych wniosków dotyczących przydatności poszczególnych zmiennych do budowy regresora przewidującego długość łowionych ryb (atrybut `length`).
+
+* Zmienną `xmonth` możemy w rzeczywistości uznać za atrybut nominalny i sama w sobie nie niesie ona żadnych informacji mogących pomóc w predykcji - jest to atrybut wtórny, będący jedynie niepełną częścią informacji o chronologii.
+* Pary zmiennych: `lcop1` i `chel1`, `lcop2` i `chel2` oraz `cumf` i `fbar` wykazują silną współliniowość. Rozsądne jest pozostawienie tylko po jednym atrybucie z każdej z tych par, ponieważ w przeciwnym razie zaburzone mogłyby być dane o istotności poszczególnych cech.
+* Najsilniej skorelowane z atrybutem `length` oznaczającym długość złowionej ryby są atrybuty:
+    + `sst` - temperatura przy powierzchni wody (korelacja `r round(cor(processed.data$length, processed.data$sst), 2)`) 
+    + `nao` - oscylacja północnoatlantycka (korelacja `r round(cor(processed.data$length, processed.data$nao), 2)`)
+* Atrybuty `sst` i `nao` posiadają przy tym wyraźną dodatnią korelację z atrybutem `X`, co zgodnie z założeniem o zachowaniu przez dane wejściowe chronologii mogłoby sugerować, że potencjalnie znaleziony regresor może uznać te zmienne za istotne czynniki predykcji.
+
+## Ilustracja zmienności długości łowionych ryb
+
+Poniższy wykres przedstawia zależność długości ryby (mierzonej z dokładnością ) od czasu (numeru sekwencyjnego próbki w zbiorze). Dodatkowo, próbki zosta
+```{r length_diagram, out.width="100%", fig.height=5}
+ggplotly(
+  ggplot(processed.data[seq(1, nrow(processed.data), 50), ], aes(X, length)) +
+    geom_point(aes(color=sst)) +
+    labs(x = "numer sekwencyjny próbki",
+         y = "długość ryby (cm)",
+         color = "Temp. pow.\nwody (st. C)",
+         title = "Długość ryby, czas i temperatura")
+)
+```
