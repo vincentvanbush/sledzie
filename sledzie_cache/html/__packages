@@ -1,4 +1,12 @@
 base
 dplyr
 ggplot2
+plotly
 easyGgplot2
+reshape2
+lattice
+caret
+foreach
+iterators
+doMC
+randomForest
