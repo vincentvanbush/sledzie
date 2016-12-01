@@ -10,7 +10,9 @@ output:
 
 ## Streszczenie raportu
 
-bla bla bla
+Raport powstał na bazie zbioru ponad 50 tysięcy rekordów z kilkudziesięciu ostatnich lat, dotyczących rozmiarów łowionych w tym okresie śledzi. Dane zostały uzupełnione o brakujące wartości, poddane analizie pod kątem korelacji poszczególnych zmiennych i wykorzystane do zbudowania przez uczenie maszynowe metodą Random Forest regresora pozwalającego przewidywać rozmiar złowionej ryby na podstawie parametrów środowiskowych.
+
+Przeprowadzone badanie wykazało, że istnieje w szczególności silne powiązanie pomiędzy stopniowym wzrostem mierzonych temperatur przy powierzchni wody, a trendem spadkowym w długości łowionych śledzi.
 
 ## Zastosowane biblioteki, czynności wstępne
 Wczytanie bibliotek `dplyr` (przetwarzanie danych), `ggplot2` i `plotly` (prezentacja graficzna), `easyGgplot2` (rozszerzenia do `ggplot2`) oraz `caret`. Dodatkowo wykorzystanie `doMC` do przetwarzania równoległego.
@@ -159,7 +161,7 @@ ctrl <- trainControl(
 ```
 
 ### Uczenie metodą Random Forest
-```{r learning, cache = TRUE}
+```{r learning, cache = TRUE, warning=FALSE}
 set.seed(23)
 fit <- train(length ~ ., data = training, method = "rf", trControl = ctrl, verbose = TRUE, importance = TRUE)
 pred <- predict(fit, validation)
@@ -182,7 +184,9 @@ Wykres ten ponownie przedstawia zmienne w czasie zmierzone długości ryb, jedna
 
 ## Ważność atrybutów
 
-```{r importance}
-importance <- varImp(fit, scale = FALSE)
+```{r importance, warning=FALSE, echo=FALSE, out.width="100%"}
+importance <- varImp(fit)
+plot(importance)
 ```
+Analiza ważności poszczególnych zmiennych potwierdza wykorzystanie przez predyktor w największym stopniu zmiennej `sst`; druga co do bezwzględnej wartości korelacji zmienna `nao` nie została zaś w ogóle wykorzystana. Pozwala to na potwierdzenie przyjmowanego dotychczas przypuszczenia, że wzrost temperatury przy powierzchni wody ma kluczowe znaczenie dla obserwowanego trendu malejących wymiarów łowionych śledzi.
 
