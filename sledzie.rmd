@@ -13,7 +13,7 @@ output:
 bla bla bla
 
 ## Zastosowane biblioteki, czynności wstępne
-Wczytanie bibliotek `dplyr` (przetwarzanie danych), `ggplot2` i `plotly` (prezentacja graficzna), `easyGgplot2` (rozszerzenia do `ggplot2`) oraz `caret` i ustawienie ziarna generatora liczb losowych.
+Wczytanie bibliotek `dplyr` (przetwarzanie danych), `ggplot2` i `plotly` (prezentacja graficzna), `easyGgplot2` (rozszerzenia do `ggplot2`) oraz `caret`. Dodatkowo wykorzystanie `doMC` do przetwarzania równoległego.
 ```{r setup, results='hide', message=FALSE}
 library(dplyr)
 library(plotly) # devtools::install_github(“ropensci/plotly”)
@@ -21,7 +21,8 @@ library(ggplot2)
 library(easyGgplot2) # devtools::install_github("kassambara/easyGgplot2")
 library(reshape2)
 library(caret)
-set.seed(23)
+library(doMC)
+registerDoMC(cores = 4)
 ```
 ## Wczytanie i wstępnie przetworzenie danych
 
@@ -138,6 +139,7 @@ Trudniejszy do oszacowania wydaje się być wpływ parametru oscylacji północn
 ### Podział zbioru danych wejściowych
 Podział zbioru w proporcjach: `r ptrain <- 0.6; ptrain * 100`% zbiór uczący, `r ptest <- 0.5; ptest * (1.0 - ptrain) * 100`% zbiór testowy, `r pvalid <- 1.0 - ptest; pvalid * (1.0 - ptrain) * 100`% zbiór walidacyjny. 
 ```{r partition}
+set.seed(23)
 inTraining <- createDataPartition(y = processed.data$length, p = 0.6, list = FALSE)
 training <- processed.data[inTraining, ]
 testing.and.validation <- processed.data[-inTraining, ]
@@ -147,6 +149,7 @@ validation = testing.and.validation[-inTesting, ]
 ```
 
 ### Schemat uczenia
+Uczenie z wykorzystaniem wielokrotnej oceny krzyżowej.
 ```{r control}
 ctrl <- trainControl(
   method = "repeatedcv",
@@ -156,6 +159,30 @@ ctrl <- trainControl(
 ```
 
 ### Uczenie metodą Random Forest
-```{r learning}
-fit <- train(length ~ ., data = training, method = "rf", trControl = ctrl, verbose = TRUE)
+```{r learning, cache = TRUE}
+set.seed(23)
+fit <- train(length ~ ., data = training, method = "rf", trControl = ctrl, verbose = TRUE, importance = TRUE)
+pred <- predict(fit, validation)
+measures = postResample(pred = pred, obs = validation$length)
+rmse <- measures[[1]]
+rsquared <- measures[[2]]
 ```
+Wygenerowany regresor dla zbioru walidującego osiągnął RMSE=`r rmse` i R^2^=`r rsquared`. Biorąc pod uwagę zakres wartości przewidywanej zmiennej `length`, taką wartość pierwiastka błędu średniokwadratowego można uznać za zadowalającą przynajmniej jako początkowy punkt odniesienia do analizy danych. W przypadku osiągniętej wartości R^2^ wyliczony model wyjaśnia około 50% wariancji zmiennej `length` i *około 30%* jej odchylenia standardowego. Nie jest to zatem predyktor zapewniający bardzo wysoką pewność otrzymania prawidłowego rezultatu, niemniej jednak warto wyciągnąć także wniosek z poniższego wykresu.
+
+```{r errplot, cache = TRUE}
+ggplot(validation %>% mutate(predicted_length = pred), aes(X, length)) +
+  geom_point(aes(color = predicted_length - length)) +
+  scale_colour_gradientn(colours = c("red","green",  "blue")) +
+  labs(x = "numer sekwencyjny próbki",
+     y = "długość ryby (cm)",
+     color = "Błąd predykcji",
+     title = "Relacja długości ryby do wartości przewidzianej przez model")
+```
+Wykres ten ponownie przedstawia zmienne w czasie zmierzone długości ryb, jednak tym razem punkty zostały pokolorowane stosownie do błędu predykcji dla danej próbki. Uzyskany model jest dosyć konserwatywny i niechętnie wychodzi poza pewien zakres wartości (na wykresie kolor zielony), notując w nim wysoką dokładność, zaś myląc się głównie w przypadkach skrajnych. Można przypuszczać, że liczność tych ostatnich jest główną przyczyną dosyć przeciętnego rezultatu współczynnika determinacji. 
+
+## Ważność atrybutów
+
+```{r importance}
+importance <- varImp(fit, scale = FALSE)
+```
+
